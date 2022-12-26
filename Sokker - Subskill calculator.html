@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html><head>
+	<script src="jquery.min.js"></script>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Sokker - Subskill calculator</title>
+
+	<style>
+		body{
+			background-color: #e2f2f8;
+			margin: 0px;
+			padding: 0px;
+		}
+	</style>
+
+
+	<script type="text/javascript">
+
+		function calculate_subskill_table() {
+			const base_values = [0, base_value]
+			for (let i = 0; i < 18; i++){
+				base_values.push(base_values[base_values.length-1] * training_multiplier)
+			}
+			console.log(base_values)
+
+			const skill_table = [0, base_value]
+			for (let i = 0; i < 18; i++){
+				skill_table.push(skill_table[skill_table.length-1] + base_values[i+2])
+			}
+			console.log(skill_table)
+			return skill_table
+		}
+
+		training_multiplier = 1.091
+		skill_exp_multiplier = 1.253
+		base_value = 1520
+		form_multiplier = 0.0257
+		stamina_base_value = 288
+		stamina_exp_multiplier = 1.48
+
+		skill_table = calculate_subskill_table()
+
+
+		function calculate_value_from_skills(bonus) {
+			var value = 0
+
+			var form = parseInt($("select[name='form_select']").val())
+
+			var stam = parseInt($("select[name='stamina_select']").val())
+			var keep = parseInt($("select[name='keeper_select']").val())
+			var pace = parseInt($("select[name='pace_select']").val())
+			var def = parseInt($("select[name='defender_select']").val())
+			var tech = parseInt($("select[name='technique_select']").val())
+			var play = parseInt($("select[name='playmaker_select']").val())
+			var pass = parseInt($("select[name='passing_select']").val())
+			var str = parseInt($("select[name='striker_select']").val())
+
+			var stamina_value = (stam + bonus) * stamina_base_value * stamina_exp_multiplier ** (stam + bonus)
+			value += stamina_value
+
+			const skills = [keep, pace, def, tech, play, pass, str]
+			const skills_new = []
+			for (let i = 0; i < skills.length; i++) {
+				skills_new.push(Math.min(skills[i] + bonus, 18))
+			}
+
+			var is_gk = true
+
+			for (let i = 0; i < skills_new.length; i++) {
+				var skill_fl = parseInt(Math.floor(skills_new[i]))
+				var skill_off = skills_new[i] - skill_fl
+
+				var skill_value = skill_table[skill_fl] + (skill_table[skill_fl+1] - skill_table[skill_fl]) * skill_off
+				skill_value *= skill_exp_multiplier ** skills_new[i]
+				if (is_gk) {
+					value += 4 * skill_value
+					is_gk = false
+				}
+				else {
+					value += skill_value
+				}
+
+			}
+
+			if (form == 9 && $("input[name='is_fresh_checkbox']").prop("checked")) {
+				value *= 1 - 9 * form_multiplier
+			}
+			else if (form + bonus < 18) {
+				value *= 1 - (18 - (form + bonus)) * form_multiplier
+			}
+
+			value *= 1 / parseFloat($("select[name='currency_select'] option:selected").attr('multiplier'))
+
+			return value
+		}
+
+		function round_value(value) {
+			multiplier = parseFloat($("select[name='currency_select'] option:selected").attr('multiplier'))
+			value = Math.round(Math.round(value/1000*multiplier) * 1000 / multiplier)
+			return value
+		}
+
+		function calculate_subskill() {
+			var errors_subskill = []
+
+			var real_value = parseInt($("input[name='value_input']").val())
+
+			var min_val = round_value(calculate_value_from_skills(bonus=0))
+			var avg_val = round_value(calculate_value_from_skills(bonus=0.5))
+			var max_val = round_value(calculate_value_from_skills(bonus=1))
+
+ 			$("#min_val").text(addSpacesAndCurrency(min_val))
+ 			$("#avg_val").text(addSpacesAndCurrency(avg_val))
+ 			$("#max_val").text(addSpacesAndCurrency(max_val))
+					
+			if (min_val > real_value) {
+				errors_subskill = ["Real value is lower than minimum possible"]
+				$("#avg_subskill").text('0.000')
+			}	
+			else if (max_val < real_value) {
+				errors_subskill = ["Real value is higher than maximum possible"]
+				$("#avg_subskill").text('1.000')
+			}
+			else {
+				var min = 0
+				var max = 1000
+
+				while (min <= max) {
+					var mid = Math.floor((min+max)/2)
+					if (calculate_value_from_skills(bonus=mid/1000) <= real_value) {
+						min = mid + 1
+					}
+					else if (calculate_value_from_skills(bonus=mid/1000) > real_value) {
+						max = mid - 1
+					}
+				}
+				$("#avg_subskill").text((min/1000).toFixed(3))
+
+			}
+			
+			return errors_subskill
+		}
+
+		function addSpacesAndCurrency(nStr) {
+		     nStr += '';
+		     x = nStr.split('.');
+		     x1 = x[0];
+		     x2 = x.length > 1 ? '.' + x[1] : '';
+		     var rgx = /(\d+)(\d{3})/;
+		     while (rgx.test(x1)) {
+		         x1 = x1.replace(rgx, '$1' + ' ' + '$2');
+		     }
+
+			 new_str = x1 + x2
+		     
+			 str_with_currency = new_str + ' ' + $("select[name='currency_select'] option:selected").text()
+
+			 return str_with_currency
+		 }
+
+		function load() {
+			$("select").change(function() {
+				calculate_subskill()
+			})
+			$("input").change(function() {
+				calculate_subskill()
+			})
+		}
+
+		function parse_skills(player_string){
+			const errors_skills = []
+			const regexp = /\[[0-9]{1,2}\]/g
+			const all_matches = Array.from([...player_string.matchAll(regexp)], match => match[0])
+
+			if (all_matches.length < 9 || all_matches.length > 10) {
+				errors_skills.push("Error: Expected 9 or 10 numbers in brackets, found " + all_matches.length)
+			}
+			else {
+
+				if (all_matches.length == 10) {
+					all_matches.splice(1, 1)
+				}
+
+				const skills = ["Form", "Stamina", "Keeper", "Pace", "Defender", "Technique", "Playmaker", "Passing", "Striker"]
+
+				for (let i = 0; i < all_matches.length; i++) { 
+					if (i == 1) {
+						var max_value = 11
+					}
+					else {
+						var max_value = 18
+					}
+
+					var skill_value = parseInt(all_matches[i].slice(1, -1))
+					
+					if (skill_value < 0 || skill_value > max_value){
+						errors_skills.push("Error: Value for " + skills[i] + " wrong, found " + skill_value + ", expected between 0 and " + max_value)
+					}
+					else {
+						$("select[numerator='" + i + "']").val(skill_value)
+					}
+
+				}	
+			}
+			return errors_skills
+		}
+
+		function parse_currency(currency_str) {
+			var errors_val = []
+
+			const currencies = [[1, '€', 0], [2, 'zł', 0], [3, '£', 0], [4, '$', 0], [5, 'lei', 0], [7, 'R$', 0],
+						        [8, 'Ft', 0], [9, 'TL', 0], [10, 'Kč', 0], [11, 'u$s', 0], [12, 'k.$', 0], [14, '$U', 0], 
+								[15, 'лв.', 0], [16, 'sol', 0], [17, 'din', 0], [18, 'CHF', 0], [19, 'kn', 0], [20, '$MN', 0], [21, 'k.₫', 0], 
+								[22, 'KM', 0], [23, 'm', 0], [24, 'kr.', 0], [25, 'k Bs.', 0], [26, 'грн.', 0], [27, 'kr', 0],
+								[29, 'руб.', 0], [30, '$ MN', 0], [31, '₪', 0], [32, 'U$S', 0], [33, '¥', 0], [35, 'Rs.', 0], 
+								[36, 'k Rp', 0], [37, 'Դրամ', 0], [38, 'C$', 0], [40, 'k G', 0], [41, 'E£', 0], [42, 'AU$', 0], 
+								[43, 'Bs', 0], [44, 'S$', 0], [45, 'k. ₩', 0], [46, '₦', 0], [47, 'NZ$', 0], [48, 'k ¢', 0], [49, 'درهم', 0], 
+								[50, 'lek', 0], [51, 'ден.', 0], [52, 'RM', 0], [53, 'L', 0], [54, 'к руб.', 0], [55, 'R', 0], [56, 'ლ', 0], 
+								[57, '฿', 0], [58, 'P', 0], [59, 'k. Fr', 0], [60, 'Q', 0], [61, 'ريال', 0], [62, 'RD$', 0], [63, 'HK$', 0], 
+								[64, 'k.¢', 0], [65, 'دج', 0], [66, 'د.ت', 0], [67, 'T', 0], [68, 'J$', 0], [69, 'د.إ', 0], [70, 'k so‘m', 0], 
+								[71, 'Sh', 0], [72, 'k.ريال', 0]]
+			
+			var best_match = 0
+
+			for (let i = 0; i < currencies.length; i++) {
+				for(let j = 0; j < currency_str.length; j++){
+					if (currency_str.slice(0, j+1) == currencies[i][1]) {
+						currencies[i][2] = j+1
+						best_match = j+1
+					}
+				}
+			}
+			
+			var best_match_count = 0
+			var matched_currency = 0
+
+			if (best_match > 0) {
+				for (let i = 0; i < currencies.length; i++) {
+					if (currencies[i][2] == best_match) {
+						matched_currency = currencies[i]
+						best_match_count++
+					}
+				}
+				if (best_match_count == 1){
+					$("select[name='currency_select']").val(matched_currency[0])
+				}
+				else {
+					errors_val = ["More than one matching currency found, this shouldn't happen"]
+				}
+			}
+			else {
+				errors_val = ["No currency found, choose currency manually"]
+			}
+
+			return errors_val
+		}
+		
+
+		function parse_value_and_currency(player_string) {
+			var errors_val = []
+			const regexp = /[^=\d][0-9]{1,3}(\s[0-9]{3})*\D/g
+			const all_matches = [...player_string.matchAll(regexp)]
+
+			const new_matches = []
+			for (let i = 0; i < all_matches.length; i++) {
+				const value = parseInt(all_matches[i][0].replace(/\D/g,''))
+				if (value >= 207) {
+					new_matches.push([all_matches[i][0], all_matches[i][0].length + all_matches[i].index, value])
+				}
+			}
+
+			if (new_matches.length == 2) {
+				$("input[name='value_input']").val(new_matches[0][2])
+
+				var is_str_same = true
+				currency_str = player_string.slice(new_matches[0][1], new_matches[0][1]+1)
+
+				var i = 1
+				while (i < 15) {
+					var str1 = player_string.slice(new_matches[0][1], new_matches[0][1]+i)
+					var str2 = player_string.slice(new_matches[1][1], new_matches[1][1]+i)
+					if (str1 == str2) {
+						currency_str = str1
+						i++
+					}
+					else {
+						break
+					}
+				}
+				errors_val = parse_currency(currency_str)
+			}
+			else {
+				errors_val = ["Could not find player's value, enter value and currency manually"]
+			}
+
+			return errors_val
+		}
+
+		function display_errors(errors_skills, errors_val) {
+		}
+
+		function parse_player_info() {
+			var player_string = $("textarea[name='player_info']").val()
+			if (player_string) {
+				const errors_skills = parse_skills(player_string)
+				const errors_val = parse_value_and_currency(player_string)
+				const errors_subskill = calculate_subskill()
+				calculate_value_from_skills(bonus=0)
+				display_errors(errors_skills, errors_val)
+			}
+		}
+
+	</script>
+</head>
+
+<body onload="load()">
+	<div style="background-color: #4f8ea2; color: white; margin: 1px; text-align: center;">
+		<b>Sokker - Subskill calculator</b>
+	</div>
+
+	
+
+	<div style="vertical-align: top; padding: 1px; text-align: center;">
+		<br>
+		Paste full player info
+		<br>
+		Should include player's value and wage, as well as 10 skill values
+		<br>
+		in [ ] brackets (form, tactical discipline and 8 normal skills).
+		<br>
+		<tr>
+			<td>
+				<textarea id="player_info" name="player_info" cols="55" rows="13" onchange="parse_player_info()" onkeyup="parse_player_info()"></textarea>
+			</td>
+		</tr>
+		<br>
+		<br>
+		<table style="text-align: left; display: inline-block">
+			<tbody>
+				<input type="checkbox" id="is_fresh_checkbox" name="is_fresh_checkbox">
+				<label for="is_fresh_checkbox"> Player is a fresh junior, before his first form update</label><br><br>
+			<tr>
+				<td>
+					<select name="form_select" numerator="0"><option value="0" selected="selected">0 - tragic</option><option value="1">1 - hopeless</option><option value="2">2 - unsatisfactory</option><option value="3">3 - poor</option><option value="4">4 - weak</option><option value="5">5 - average</option><option value="6">6 - adequate</option><option value="7">7 - good</option><option value="8">8 - solid</option><option value="9">9 - very good</option><option value="10">10 - excellent</option><option value="11">11 - formidable</option><option value="12">12 - outstanding</option><option value="13">13 - incredible</option><option value="14">14 - brilliant</option><option value="15">15 - magical</option><option value="16">16 - unearthly</option><option value="17">17 - divine</option><option value="18" selected="selected">18 - superdivine</option></select> form<br><br>
+					<select name="stamina_select" numerator="1"><option value="0" selected="selected">0 - tragic</option><option value="1">1 - hopeless</option><option value="2">2 - unsatisfactory</option><option value="3">3 - poor</option><option value="4">4 - weak</option><option value="5">5 - average</option><option value="6">6 - adequate</option><option value="7">7 - good</option><option value="8">8 - solid</option><option value="9">9 - very good</option><option value="10">10 - excellent</option><option value="11">11 - formidable</option></select> stamina<br>
+					<select name="pace_select" numerator="3"><option value="0" selected="selected">0 - tragic</option><option value="1">1 - hopeless</option><option value="2">2 - unsatisfactory</option><option value="3">3 - poor</option><option value="4">4 - weak</option><option value="5">5 - average</option><option value="6">6 - adequate</option><option value="7">7 - good</option><option value="8">8 - solid</option><option value="9">9 - very good</option><option value="10">10 - excellent</option><option value="11">11 - formidable</option><option value="12">12 - outstanding</option><option value="13">13 - incredible</option><option value="14">14 - brilliant</option><option value="15">15 - magical</option><option value="16">16 - unearthly</option><option value="17">17 - divine</option><option value="18">18 - superdivine</option></select> pace<br>
+					<select name="technique_select" numerator="5"><option value="0" selected="selected">0 - tragic</option><option value="1">1 - hopeless</option><option value="2">2 - unsatisfactory</option><option value="3">3 - poor</option><option value="4">4 - weak</option><option value="5">5 - average</option><option value="6">6 - adequate</option><option value="7">7 - good</option><option value="8">8 - solid</option><option value="9">9 - very good</option><option value="10">10 - excellent</option><option value="11">11 - formidable</option><option value="12">12 - outstanding</option><option value="13">13 - incredible</option><option value="14">14 - brilliant</option><option value="15">15 - magical</option><option value="16">16 - unearthly</option><option value="17">17 - divine</option><option value="18">18 - superdivine</option></select> technique<br>
+					<select name="passing_select" numerator="7"><option value="0" selected="selected">0 - tragic</option><option value="1">1 - hopeless</option><option value="2">2 - unsatisfactory</option><option value="3">3 - poor</option><option value="4">4 - weak</option><option value="5">5 - average</option><option value="6">6 - adequate</option><option value="7">7 - good</option><option value="8">8 - solid</option><option value="9">9 - very good</option><option value="10">10 - excellent</option><option value="11">11 - formidable</option><option value="12">12 - outstanding</option><option value="13">13 - incredible</option><option value="14">14 - brilliant</option><option value="15">15 - magical</option><option value="16">16 - unearthly</option><option value="17">17 - divine</option><option value="18">18 - superdivine</option></select> passing<br>
+				</td>
+				<td>
+					Value: <input style="width: 70px;" type="text" id="value_input" name="value_input"> 
+					<select style="width: 70px;" name="currency_select">
+						<option value="1" multiplier=4 selected="selected">€</option>
+						<option value="2" multiplier=1 >zł</option>
+						<option value="3" multiplier=6.66667 >£</option>
+						<option value="4" multiplier=4 >$</option>
+						<option value="5" multiplier=1 >lei Rom</option>
+						<option value="6" multiplier=0.25 >lei Mol</option>
+						<option value="7" multiplier=1 >R$</option>
+						<option value="8" multiplier=0.02 >Ft</option>
+						<option value="9" multiplier=2.5 >TL</option>
+						<option value="10" multiplier=0.133333 >Kč</option>
+						<option value="11" multiplier=4 >u$s</option>
+						<option value="12" multiplier=1.25 >k.$ Col</option>
+						<option value="13" multiplier=5 >k.$ Chi</option>
+						<option value="14" multiplier=0.125 >$U</option>
+						<option value="15" multiplier=2 >лв.</option>
+						<option value="16" multiplier=1 >sol</option>
+						<option value="17" multiplier=0.05 >din</option>
+						<option value="18" multiplier=2.5 >CHF</option>
+						<option value="19" multiplier=0.5 >kn</option>
+						<option value="20" multiplier=2.5 >$MN</option>
+						<option value="21" multiplier=0.2 >k.₫</option>
+						<option value="22" multiplier=2 >KM</option>
+						<option value="23" multiplier=3.2 >m</option>
+						<option value="24" multiplier=0.5 >kr.</option>
+						<option value="25" multiplier=1.25 >k Bs.</option>
+						<option value="26" multiplier=0.625 >грн.</option>
+						<option value="27" multiplier=0.5 >kr Sv</option>
+						<option value="28" multiplier=0.05 >kr Ís</option>
+						<option value="29" multiplier=0.125 >руб.</option>
+						<option value="30" multiplier=0.333333 >$ MN</option>
+						<option value="31" multiplier=0.666667 >₪</option>
+						<option value="32" multiplier=4 >U$S</option>
+						<option value="33" multiplier=0.4 >¥ Zhō</option>
+						<option value="34" multiplier=0.025 >¥ Nip</option>
+						<option value="35" multiplier=0.08 >Rs.</option>
+						<option value="36" multiplier=0.4 >k Rp</option>
+						<option value="37" multiplier=8 >Դրամ</option>
+						<option value="38" multiplier=2.5 >C$ Can</option>
+						<option value="39" multiplier=0.2 >C$ Nic</option>
+						<option value="40" multiplier=0.5 >k G</option>
+						<option value="41" multiplier=0.5 >E£</option>
+						<option value="42" multiplier=2.5 >AU$</option>
+						<option value="43" multiplier=0.4 >Bs</option>
+						<option value="44" multiplier=2 >S$</option>
+						<option value="45" multiplier=3.2 >k. ₩</option>
+						<option value="46" multiplier=2.22222 >₦</option>
+						<option value="47" multiplier=2.5 >NZ$</option>
+						<option value="48" multiplier=6.25 >k ¢</option>
+						<option value="49" multiplier=0.32 >درهم</option>
+						<option value="50" multiplier=0.04 >lek</option>
+						<option value="51" multiplier=0.05 >ден.</option>
+						<option value="52" multiplier=0.8 >RM</option>
+						<option value="53" multiplier=0.2 >L</option>
+						<option value="54" multiplier=1.25 >к руб.</option>
+						<option value="55" multiplier=0.5 >R</option>
+						<option value="56" multiplier=2 >ლ</option>
+						<option value="57" multiplier=0.08 >฿</option>
+						<option value="58" multiplier=0.625 >P</option>
+						<option value="59" multiplier=6.25 >k. Fr</option>
+						<option value="60" multiplier=0.4 >Q</option>
+						<option value="61" multiplier=0.78125 >ريال</option>
+						<option value="62" multiplier=0.1 >RD$</option>
+						<option value="63" multiplier=0.4 >HK$</option>
+						<option value="64" multiplier=0.32 >k.¢</option>
+						<option value="65" multiplier=0.05 >دج</option>
+						<option value="66" multiplier=2 >د.ت</option>
+						<option value="67" multiplier=0.025 >T</option>
+						<option value="68" multiplier=0.04 >J$</option>
+						<option value="69" multiplier=0.625 >د.إ</option>
+						<option value="70" multiplier=2.5 >k so‘m</option>
+						<option value="71" multiplier=0.04 >Sh</option>
+						<option value="72" multiplier=0.25 >k.ريال</option>
+					</select><br><br>
+					<select name="keeper_select" numerator="2"><option value="0" selected="selected">0 - tragic</option><option value="1">1 - hopeless</option><option value="2">2 - unsatisfactory</option><option value="3">3 - poor</option><option value="4">4 - weak</option><option value="5">5 - average</option><option value="6">6 - adequate</option><option value="7">7 - good</option><option value="8">8 - solid</option><option value="9">9 - very good</option><option value="10">10 - excellent</option><option value="11">11 - formidable</option><option value="12">12 - outstanding</option><option value="13">13 - incredible</option><option value="14">14 - brilliant</option><option value="15">15 - magical</option><option value="16">16 - unearthly</option><option value="17">17 - divine</option><option value="18">18 - superdivine</option></select> keeper<br>
+					<select name="defender_select" numerator="4"><option value="0" selected="selected">0 - tragic</option><option value="1">1 - hopeless</option><option value="2">2 - unsatisfactory</option><option value="3">3 - poor</option><option value="4">4 - weak</option><option value="5">5 - average</option><option value="6">6 - adequate</option><option value="7">7 - good</option><option value="8">8 - solid</option><option value="9">9 - very good</option><option value="10">10 - excellent</option><option value="11">11 - formidable</option><option value="12">12 - outstanding</option><option value="13">13 - incredible</option><option value="14">14 - brilliant</option><option value="15">15 - magical</option><option value="16">16 - unearthly</option><option value="17">17 - divine</option><option value="18">18 - superdivine</option></select> defender<br>
+					<select name="playmaker_select" numerator="6"><option value="0" selected="selected">0 - tragic</option><option value="1">1 - hopeless</option><option value="2">2 - unsatisfactory</option><option value="3">3 - poor</option><option value="4">4 - weak</option><option value="5">5 - average</option><option value="6">6 - adequate</option><option value="7">7 - good</option><option value="8">8 - solid</option><option value="9">9 - very good</option><option value="10">10 - excellent</option><option value="11">11 - formidable</option><option value="12">12 - outstanding</option><option value="13">13 - incredible</option><option value="14">14 - brilliant</option><option value="15">15 - magical</option><option value="16">16 - unearthly</option><option value="17">17 - divine</option><option value="18">18 - superdivine</option></select> playmaker<br>
+					<select name="striker_select" numerator="8"><option value="0" selected="selected">0 - tragic</option><option value="1">1 - hopeless</option><option value="2">2 - unsatisfactory</option><option value="3">3 - poor</option><option value="4">4 - weak</option><option value="5">5 - average</option><option value="6">6 - adequate</option><option value="7">7 - good</option><option value="8">8 - solid</option><option value="9">9 - very good</option><option value="10">10 - excellent</option><option value="11">11 - formidable</option><option value="12">12 - outstanding</option><option value="13">13 - incredible</option><option value="14">14 - brilliant</option><option value="15">15 - magical</option><option value="16">16 - unearthly</option><option value="17">17 - divine</option><option value="18">18 - superdivine</option></select> striker<br>
+				</td>
+			</tr>
+			<tr>
+				<td>&nbsp;</td>
+			</tr>
+			<tr>
+				<td><b>Average subskill level:</b></td>
+				<td><span id="avg_subskill">0.000</span></td>
+			</tr>
+			<tr>
+			</tr>
+			<tr>
+				<td><b>Minimum value:</b></td>
+				<td><span id="min_val">0 €</span></td>
+			</tr>
+			<tr>
+				<td><b>Average value:</b></td>
+				<td><span id="avg_val">0 €</span></td>
+			</tr>
+			<tr>
+				<td><b>Maximum value:</b></td>
+				<td><span id="max_val">0 €</span></td>
+			</tr>
+			</tbody>
+		</table>
+		<br>
+		<tr>
+			<td><span id="error_message"></span></td>
+		</tr>
+
+	</div>
+
+
