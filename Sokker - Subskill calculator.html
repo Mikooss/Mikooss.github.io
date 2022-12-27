@@ -100,10 +100,19 @@
 			return value
 		}
 
+		function get_real_value() {
+			var real_value = $("input[name='value_input']").val()
+			real_value = real_value.replace(/\D/g,'')
+			if (!real_value) {
+				real_value = '0'
+			}
+			return parseInt(real_value)
+		}
+
 		function calculate_subskill() {
 			var errors_subskill = []
 
-			var real_value = parseInt($("input[name='value_input']").val())
+			var real_value = get_real_value()
 
 			var min_val = round_value(calculate_value_from_skills(bonus=0))
 			var avg_val = round_value(calculate_value_from_skills(bonus=0.5))
@@ -132,6 +141,9 @@
 					}
 					else if (calculate_value_from_skills(bonus=mid/1000) > real_value) {
 						max = mid - 1
+					}
+					else {
+						break
 					}
 				}
 				$("#avg_subskill").text((min/1000).toFixed(3))
