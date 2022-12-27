@@ -244,8 +244,10 @@
 			for (let i = 0; i < currencies.length; i++) {
 				for(let j = 0; j < currency_str.length; j++){
 					if (currency_str.slice(0, j+1) == currencies[i][1]) {
-						currencies[i][2] = j+1
-						best_match = j+1
+						if (j+1 >= best_match) {
+							currencies[i][2] = j+1
+							best_match = j+1
+						}
 					}
 				}
 			}
