@@ -21,13 +21,11 @@
 			for (let i = 0; i < 18; i++){
 				base_values.push(base_values[base_values.length-1] * training_multiplier)
 			}
-			console.log(base_values)
 
 			const skill_table = [0, base_value]
 			for (let i = 0; i < 18; i++){
 				skill_table.push(skill_table[skill_table.length-1] + base_values[i+2])
 			}
-			console.log(skill_table)
 			return skill_table
 		}
 
