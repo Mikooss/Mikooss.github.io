@@ -16,7 +16,7 @@
 
 	<script type="text/javascript">
 
-		function calculate_subskill_table() {
+		function calculate_skill_table() {
 			const base_values = [0, base_value]
 			for (let i = 0; i < 18; i++){
 				base_values.push(base_values[base_values.length-1] * training_multiplier)
@@ -38,7 +38,7 @@
 		stamina_base_value = 288
 		stamina_exp_multiplier = 1.48
 
-		skill_table = calculate_subskill_table()
+		skill_table = calculate_skill_table()
 
 
 		function calculate_value_from_skills(bonus) {
@@ -168,7 +168,11 @@
 			 str_with_currency = new_str + ' ' + $("select[name='currency_select'] option:selected").text()
 
 			 return str_with_currency
-		 }
+		}
+
+		function clear_text() {
+			$("textarea[name='player_info']").val('')
+		}
 
 		function load() {
 			$("select").change(function() {
@@ -176,6 +180,9 @@
 			})
 			$("input").change(function() {
 				calculate_subskill()
+			})
+			$("button").click(function() {
+				clear_text()
 			})
 		}
 
@@ -346,9 +353,9 @@
 			</td>
 		</tr>
 		<br>
-		<br>
 		<table style="text-align: left; display: inline-block">
 			<tbody>
+				<button type="button" style="width: 70px; height: 25px;" id="clear" name="clear">Clear</button><br><br>
 				<input type="checkbox" id="is_fresh_checkbox" name="is_fresh_checkbox">
 				<label for="is_fresh_checkbox"> Player is a fresh junior, before his first form update</label><br><br>
 			<tr>
